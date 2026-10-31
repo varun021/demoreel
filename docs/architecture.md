@@ -21,7 +21,7 @@ config.json ──► cli.create ──► pipeline.create
 
 | Module | Responsibility |
 |---|---|
-| `cli.py` | Typer app. One command, `create`. Maps `ValueError`/`KeyError`/`TypeError` to a usage error, everything else to exit code 1. |
+| `cli.py` | Typer app. Commands: `create` and `init` (writes the `STARTER` config after running it through `validate_config`). Maps `ValueError`/`KeyError`/`TypeError` to a usage error, everything else to exit code 1. |
 | `pipeline.py` | `create(...)`: chooses the WebM-only fast path or the narrated path, owns the output file layout. |
 | `runner.py` | Config validation, the step loop, Playwright recording, the in-page effects (highlight, cursor, ripple, zoom), the cross-origin guard. |
 | `tts.py` | `synthesize(text, wav_path, backend, voice) -> seconds`, `synthesize_cached(...)`, the `BACKENDS` dict (`fake`, `kokoro`). |

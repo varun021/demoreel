@@ -34,7 +34,9 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 playwright install chromium
 
-# serve the sample site, then record it (offline test-tone voice, no Kokoro needed)
+demoreel init                                   # writes a starter demoreel.json for your own site
+
+# or try the bundled sample: serve the sample site, then record it (offline test-tone voice, no Kokoro needed)
 python3 -m http.server 3000 --directory examples/sample-site &
 demoreel create -c examples/sample-demo.json -o output/demo.mp4 --tts fake
 ```
@@ -57,6 +59,7 @@ Navigation is restricted to the origin (scheme, host, port) of `base_url`. This 
 ## Run
 
 ```bash
+demoreel init --url http://localhost:5173        # starter config (--force to overwrite)
 demoreel create -c examples/demo-steps.json -o output/demo.webm            # recording only
 demoreel create -c examples/sample-demo.json -o output/demo.mp4            # narrated MP4 (Kokoro)
 demoreel create -c examples/sample-demo.json -o output/demo.mp4 --tts fake # offline test tone

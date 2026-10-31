@@ -2,12 +2,39 @@ from pathlib import Path
 import json
 import typer
 from .pipeline import create as build
+from .runner import validate_config
 
 app = typer.Typer(no_args_is_help=True, help="Record browser demos locally.")
 
-@app.callback()
-def main():
-    """Record browser demos locally."""
+STARTER = {
+    "pace": "normal",
+    "steps": [
+        {"action": "navigate", "url": "/", "narration": "Welcome! This is the home page."},
+        {"action": "click", "selector": "text=Get started", "highlight": "text=Get started", "zoom": 1.4,
+         "narrate": "before", "narration": "Click here to get started."},
+        {"action": "fill", "selector": "input[type=email]", "value": "demo@example.com",
+         "narration": "Type your email."},
+    ],
+}
+
+
+@app.command()
+def init(
+    path: Path = typer.Argument(Path("demoreel.json"), help="Where to write the starter config"),
+    url: str = typer.Option("http://localhost:3000", "--url", help="The site to record (base_url)"),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing file"),
+):
+    """Write a starter config. Edit the selectors to match your site."""
+    if path.exists() and not force:
+        raise typer.BadParameter(f"{path} already exists (use --force to overwrite).")
+    config = {"base_url": url, **STARTER}
+    try:
+        validate_config(config)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    typer.echo(f"Wrote {path}. Edit the selectors, then try: demoreel create -c {path} -o output/demo.mp4 --tts fake")
+
 
 @app.command()
 def create(
@@ -20,6 +47,7 @@ def create(
     burn_subtitles: bool = typer.Option(True, "--burn-subtitles/--no-burn-subtitles", help="Hard-code subtitles into the MP4"),
     av_offset_ms: int = typer.Option(0, "--av-offset-ms", help="Shift narration/subtitles vs video (+ = later)"),
 ):
+    """Record a demo from a JSON config (WebM, or narrated MP4 with --output name.mp4)."""
     try:
         data = json.loads(config.read_text(encoding="utf-8"))
         result = build(data, output, headed, tts, voice, burn_subtitles, av_offset_ms, log=typer.echo, speed=speed)

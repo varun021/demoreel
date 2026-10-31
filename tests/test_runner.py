@@ -1,4 +1,5 @@
 import functools
+import json
 import re
 import http.server
 import threading
@@ -210,3 +211,17 @@ def test_pace_scales_builtin_delays_but_not_explicit_pauses(site, tmp_path):
         return timeline[0]["start"]
     # steps 1-3 contain only built-in delays (pauses, highlight lead, cursor glide, ripple lead)
     assert narrated_start("slow") - narrated_start("fast") > 2  # about 3.2 s expected
+
+
+def test_init_writes_a_valid_config_and_protects_existing_files(tmp_path):
+    target = tmp_path / "demoreel.json"
+    res = CliRunner().invoke(app, ["init", str(target), "--url", "http://localhost:5173"])
+    assert res.exit_code == 0
+    cfg = json.loads(target.read_text())
+    assert cfg["base_url"] == "http://localhost:5173"
+    validate_config(cfg)  # the starter must pass the real validator
+    again = CliRunner().invoke(app, ["init", str(target)])
+    assert again.exit_code != 0 and json.loads(target.read_text())["base_url"] == "http://localhost:5173"
+    assert CliRunner().invoke(app, ["init", str(target), "--force"]).exit_code == 0
+    assert json.loads(target.read_text())["base_url"] == "http://localhost:3000"
+    assert CliRunner().invoke(app, ["init", str(tmp_path / "b.json"), "--url", "nope"]).exit_code != 0
