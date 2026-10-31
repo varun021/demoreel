@@ -1,5 +1,7 @@
 # Demoreel
 
+[![tests](https://github.com/varun021/demoreel/actions/workflows/ci.yml/badge.svg)](https://github.com/varun021/demoreel/actions/workflows/ci.yml)
+
 Script a browser demo in JSON and get a narrated, captioned MP4. Everything runs locally: [Playwright](https://playwright.dev) records the browser, [Kokoro](https://github.com/hexgrad/kokoro) speaks the narration, and ffmpeg puts it together. No accounts, no uploads.
 
 ![Demoreel output: highlight ring, cursor, typing, zoom and captions](docs/assets/demo.gif)
