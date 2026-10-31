@@ -2,7 +2,7 @@ from pathlib import Path
 import json
 import typer
 from .pipeline import create as build
-from .runner import validate_config
+from .runner import save_login, validate_config
 
 app = typer.Typer(no_args_is_help=True, help="Record browser demos locally.")
 
@@ -11,6 +11,7 @@ SCHEMA_URL = "https://raw.githubusercontent.com/varun021/demoreel/main/demoreel.
 STARTER = {
     "$schema": SCHEMA_URL,
     "pace": "normal",
+    "intro": {"title": "My Product", "subtitle": "A two-minute tour"},
     "steps": [
         {"action": "navigate", "url": "/", "narration": "Welcome! This is the home page."},
         {"action": "click", "selector": "text=Get started", "highlight": "text=Get started", "zoom": 1.4,
@@ -40,6 +41,19 @@ def init(
 
 
 @app.command()
+def login(
+    url: str = typer.Argument(..., help="Page to open, usually the site's sign-in page"),
+    out: Path = typer.Option(Path("auth.json"), "--out", "-o", help="Where to save the session"),
+):
+    """Sign in once in a real browser and save the session, for demos behind a login."""
+    try:
+        save_login(url, out, wait=lambda: input("Sign in in the browser window, then press Enter here to save the session. "))
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f'Saved {out} (keep it private; it holds live session tokens). Add "storage_state": "{out}" to your config.')
+
+
+@app.command()
 def create(
     config: Path = typer.Option(..., "--config", "-c", exists=True, readable=True),
     output: Path = typer.Option(Path("output/demo.webm"), "--output", "-o"),
@@ -53,6 +67,8 @@ def create(
     """Record a demo from a JSON config (WebM, or narrated MP4 with --output name.mp4)."""
     try:
         data = json.loads(config.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and isinstance(data.get("storage_state"), str):  # relative to the config file
+            data["storage_state"] = str(config.parent / Path(data["storage_state"]).expanduser())
         result = build(data, output, headed, tts, voice, burn_subtitles, av_offset_ms, log=typer.echo, speed=speed)
         typer.echo(f"Recording saved: {result}")
     except (ValueError, KeyError, TypeError) as exc:

@@ -58,10 +58,27 @@ Narration starts after the step's action by default. `"narrate": "before"` start
 
 Navigation is restricted to the origin (scheme, host, port) of `base_url`. This covers `navigate` steps and also link clicks and redirects, which are blocked at the browser level. Use a test account and demo data, and don't store passwords in the config. Be careful with actions that submit forms, delete data, send messages, or trigger real transactions. Only record sites you are authorized to test.
 
+### Title cards
+
+Add `"intro": {"title": "Acme Notes", "subtitle": "A quick tour", "seconds": 2.5}` and/or `"outro": {...}` at the top level for a title card before the first step and after the last one. `subtitle` is optional, and `seconds` (0.5 to 10) defaults to 2.5. The cards are recorded in the same video, so narration and subtitles stay in sync.
+
+### Demos behind a login
+
+Sign in once in a real browser and save the session:
+
+```bash
+demoreel login https://app.example.com/login -o auth.json
+```
+
+A browser window opens. Sign in (including any two-factor step), then press Enter in the terminal. Then add `"storage_state": "auth.json"` to the config (the path is relative to the config file). The demo starts already signed in, so no password ever goes in the config.
+
+`auth.json` holds live session tokens: the command saves it owner-only (`chmod 600`), `.gitignore` excludes `auth.json`, `*.auth.json` and `storage_state*.json`, and you should never commit or share it. Use a test account, and delete the file when you're done. Navigation is still limited to the `base_url` origin.
+
 ## Run
 
 ```bash
 demoreel init --url http://localhost:5173        # starter config (--force to overwrite)
+demoreel login https://app.example.com/login -o auth.json   # save a signed-in session
 demoreel create -c examples/demo-steps.json -o output/demo.webm            # recording only
 demoreel create -c examples/sample-demo.json -o output/demo.mp4            # narrated MP4 (Kokoro)
 demoreel create -c examples/sample-demo.json -o output/demo.mp4 --tts fake # offline test tone

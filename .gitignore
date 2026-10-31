@@ -7,3 +7,6 @@ output/
 *.egg-info/
 .pytest_cache/
 .venv312/
+auth.json
+*.auth.json
+storage_state*.json

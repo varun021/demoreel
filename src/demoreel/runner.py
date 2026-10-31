@@ -1,11 +1,13 @@
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
+import html
 import re
 import shutil
 import time
 from playwright.sync_api import sync_playwright
 
 STEP_TIMEOUT_MS = 15000
+CARD_SECONDS = 2.5  # default hold for the intro / outro title cards
 ALLOWED_ACTIONS = {"navigate", "click", "fill", "press", "hover", "scroll", "wait", "screenshot"}
 
 def validate_config(config):
@@ -22,6 +24,19 @@ def validate_config(config):
         raise ValueError("Config requires a non-empty steps array.")
     if config.get("pace", "normal") not in PACES:
         raise ValueError(f"pace must be one of {', '.join(PACES)}.")
+    for key in ("intro", "outro"):
+        card = config.get(key)
+        if card is None:
+            continue
+        if not (isinstance(card, dict) and isinstance(card.get("title"), str) and card["title"].strip()):
+            raise ValueError(f"{key} needs a non-empty title.")
+        if not isinstance(card.get("subtitle", ""), str):
+            raise ValueError(f"{key}.subtitle must be a string.")
+        seconds = card.get("seconds", CARD_SECONDS)
+        if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not 0.5 <= seconds <= 10:
+            raise ValueError(f"{key}.seconds must be a number from 0.5 to 10.")
+    if not isinstance(config.get("storage_state", ""), str):
+        raise ValueError("storage_state must be a file path string.")
     viewport = config.get("viewport", {})
     if not isinstance(viewport, dict):
         raise ValueError("viewport must be an object with width and height.")
@@ -226,6 +241,30 @@ def _do_action(page, base_url, screenshots_dir, index, step, fx):
         name = re.sub(r"[^a-zA-Z0-9_-]+", "-", str(step.get("name", f"step-{index}"))).strip("-")
         page.screenshot(path=str(screenshots_dir / f"{index:02d}-{name or 'screenshot'}.png"), full_page=True, animations="disabled")
 
+def _show_card(page, card):
+    """Title card: a styled page recorded like any other, so it shares the video's timeline."""
+    title, sub = html.escape(card["title"]), html.escape(card.get("subtitle", ""))
+    page.set_content(
+        '<body style="margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;'
+        'padding:0 8vw;box-sizing:border-box;background:linear-gradient(135deg,#1e1b4b,#4f46e5);color:#fff;'
+        f'font-family:system-ui,sans-serif;text-align:center"><h1 style="font-size:72px;margin:0 0 16px">{title}</h1>'
+        f'<p style="font-size:32px;margin:0;opacity:.8">{sub}</p></body>')
+    page.wait_for_timeout(int(card.get("seconds", CARD_SECONDS) * 1000))
+
+def save_login(url, out, headless=False, wait=input):
+    """Open `url`, let the user sign in, then save cookies and local storage to `out` for `storage_state`."""
+    if urlparse(url).scheme not in {"http", "https"}:
+        raise ValueError("url must be an http:// or https:// URL.")
+    out = Path(out).expanduser()
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=headless)
+        context = browser.new_context()
+        context.new_page().goto(url)
+        wait()
+        context.storage_state(path=str(out))
+        browser.close()
+    out.chmod(0o600)  # it holds live session tokens
+
 def run_demo(config, output_path, headed=False, narration_audio=None, timeline=None, log=None):
     """narration_audio: {step_index: (wav_path, seconds)}. If given with `timeline` (a list),
     each narrated step appends {"step","text","start","end","audio"} (seconds into the video).
@@ -241,10 +280,14 @@ def run_demo(config, output_path, headed=False, narration_audio=None, timeline=N
     screenshots_dir.mkdir(parents=True, exist_ok=True)
     raw_dir = output_path.parent / f"{output_path.stem}_raw"
     shutil.rmtree(raw_dir, ignore_errors=True)  # stale recordings would be picked up otherwise
+    state = config.get("storage_state")
+    if state and not Path(state).expanduser().is_file():
+        raise ValueError(f"storage_state file not found: {state}. Create one with: demoreel login <url> -o {state}")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=not headed)
-        context = browser.new_context(viewport=viewport, record_video_dir=str(raw_dir), record_video_size=viewport)
+        context = browser.new_context(viewport=viewport, record_video_dir=str(raw_dir), record_video_size=viewport,
+                                      storage_state=str(Path(state).expanduser()) if state else None)
         base = urlparse(base_url)
 
         def _guard(route):
@@ -263,6 +306,9 @@ def run_demo(config, output_path, headed=False, narration_audio=None, timeline=N
         fx = {"k": PACES[config.get("pace", "normal")]}  # "k": time scale; "pos": last cursor position (survives navigations)
         t0 = time.monotonic()  # ponytail: video starts at page creation; tune with the pipeline's av_offset_ms
         try:
+            if "intro" in config:
+                log("Intro card")
+                _show_card(page, config["intro"])
             for index, step in enumerate(steps, 1):
                 action = step["action"]
                 step_start = time.monotonic() - t0
@@ -281,6 +327,9 @@ def run_demo(config, output_path, headed=False, narration_audio=None, timeline=N
                                          "end": start + seconds, "audio": str(wav)})
                     pause_ms = max(pause_ms, int((start + seconds - now) * 1000) + _ms(fx, 300))  # hold until the audio ends
                 page.wait_for_timeout(pause_ms)
+            if "outro" in config:
+                log("Outro card")
+                _show_card(page, config["outro"])
         finally:
             context.close()
             browser.close()

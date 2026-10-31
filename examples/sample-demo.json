@@ -32,6 +32,19 @@
       "narrate": "before"
     },
     {
+      "action": "hover",
+      "selector": "#pro",
+      "highlight": "#pro",
+      "narration": "The Pro plan is the one most people pick.",
+      "narrate": "before"
+    },
+    {
+      "action": "scroll",
+      "selector": "#faq",
+      "narration": "And the questions below answer the rest.",
+      "narrate": "before"
+    },
+    {
       "action": "click",
       "selector": "text=Contact",
       "narration": "Questions? The contact page is one click away.",
@@ -61,5 +74,15 @@
       "zoom": 1.6,
       "narrate": "before"
     }
-  ]
+  ],
+  "intro": {
+    "title": "Acme Notes",
+    "subtitle": "A quick tour",
+    "seconds": 2.5
+  },
+  "outro": {
+    "title": "Thanks for watching",
+    "subtitle": "Made with Demoreel",
+    "seconds": 2.5
+  }
 }

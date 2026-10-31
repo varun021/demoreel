@@ -21,7 +21,7 @@ config.json ──► cli.create ──► pipeline.create
 
 | Module | Responsibility |
 |---|---|
-| `cli.py` | Typer app. Commands: `create` and `init` (writes the `STARTER` config after running it through `validate_config`). Maps `ValueError`/`KeyError`/`TypeError` to a usage error, everything else to exit code 1. |
+| `cli.py` | Typer app. Commands: `create`, `init` and `login` (saves a browser session). `init` writes the `STARTER` config after running it through `validate_config`. Maps `ValueError`/`KeyError`/`TypeError` to a usage error, everything else to exit code 1. |
 | `pipeline.py` | `create(...)`: chooses the WebM-only fast path or the narrated path, owns the output file layout. |
 | `runner.py` | Config validation, the step loop, Playwright recording, the in-page effects (highlight, cursor, ripple, zoom), the cross-origin guard. |
 | `tts.py` | `synthesize(text, wav_path, backend, voice) -> seconds`, `synthesize_cached(...)`, the `BACKENDS` dict (`fake`, `kokoro`). |
@@ -40,7 +40,7 @@ config.json ──► cli.create ──► pipeline.create
 
 - `base_url` is required and must be http(s). `viewport` is optional (default 1920x1080, allowed range 320x240 to 3840x2160).
 - Actions: `navigate` (`url`), `click` (`selector`), `fill` (`selector`, `value`), `press` (`selector`, `key`), `hover` (`selector`), `scroll` (exactly one of `selector` or `by`; eased over `SCROLL_MS`, 800 ms x pace, page scroll only), `wait` (`ms`, clamped to 10000), `screenshot` (`name`).
-- Optional top level: `pace` (`fast`, `normal`, `slow`; default `normal`). `runner.PACES` maps it to a time scale (0.6 / 1 / 1.6) kept in the `fx` state dict as `"k"`, and `_ms(fx, base)` applies it to the built-in delays: cursor glide (450 ms), zoom (400), highlight lead (600), ripple lead (150), typing delay (60/key), default pause (700) and the 300 ms hold after narration. Explicit `pause_ms` and `wait.ms` are never scaled, and neither is TTS speed or the page/video fades.
+- Optional top level: `intro` / `outro` (`{"title", "subtitle", "seconds"}`; a title card, see below) and `storage_state` (path to a saved login session; the CLI resolves a relative path against the config file). `pace` (`fast`, `normal`, `slow`; default `normal`). `runner.PACES` maps it to a time scale (0.6 / 1 / 1.6) kept in the `fx` state dict as `"k"`, and `_ms(fx, base)` applies it to the built-in delays: cursor glide (450 ms), zoom (400), highlight lead (600), ripple lead (150), typing delay (60/key), default pause (700) and the 300 ms hold after narration. Explicit `pause_ms` and `wait.ms` are never scaled, and neither is TTS speed or the page/video fades.
 - Optional on any step: `pause_ms` (default 700, clamped to 5000), `narration` (non-empty string), `narrate` (`"before"` or `"after"`, default `"after"`), `highlight` (selector).
 - Optional on `click` only: `zoom` (number above 1, at most 3).
 - `demoreel.schema.json` mirrors these rules for editors (and flags unknown fields, which `validate_config` ignores). `tests/test_schema.py` checks the examples and the `init` starter against it, that its enums match `ALLOWED_ACTIONS` and `PACES`, and that both reject the same bad configs. Update both when you add a field.
@@ -81,6 +81,11 @@ Playwright's video does not capture the OS pointer, so everything visible is DOM
 - **Zoom** (`_ZOOM_JS`): `transform: scale()` on `<body>` with the transform origin set to the click point, so the target stays under the cursor. `<html>` overflow is hidden while zoomed.
 
 Known limitation: `position: fixed` elements inside `<body>` behave as if the body is their containing block while it is transformed, so sticky headers can shift during a zoom. The cursor, ripple and highlight avoid this by living on `<html>` or by being cleared before the zoom.
+
+### Title cards and login sessions
+
+- **Cards:** `_show_card` renders the intro or outro as a styled HTML page with `page.set_content`, holds it for `seconds` (default `CARD_SECONDS`, 2.5; not scaled by `pace`), and the next navigation replaces it. Because the cards live in the same recording and `t0` starts at page creation, an intro simply shifts every timeline entry, so subtitles and audio stay in sync with no extra offset. Titles are HTML-escaped.
+- **Login:** `save_login(url, out)` opens a headed browser, waits for the user, and writes Playwright's `storage_state` (cookies and local storage) to `out` with mode 0600. `run_demo` passes `storage_state` to `new_context` and raises a `ValueError` pointing to `demoreel login` when the file is missing. The origin guard is unchanged. These files are secrets; `.gitignore` excludes the usual names.
 
 ### Transitions and progress
 

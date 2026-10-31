@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 from demoreel.cli import app
 from playwright.sync_api import sync_playwright
 
-from demoreel.runner import _FADE_IN_JS, _click, _do_action, _fill, _safe_url, validate_config, run_demo
+from demoreel.runner import _FADE_IN_JS, _click, _do_action, _fill, save_login, _safe_url, validate_config, run_demo
 
 BASE = "http://localhost:3000"
 OK = {"base_url": BASE, "steps": [{"action": "wait"}]}
@@ -33,6 +33,10 @@ OK = {"base_url": BASE, "steps": [{"action": "wait"}]}
     ({"base_url": BASE, "steps": [{"action": "click", "selector": "a", "zoom": 4}]}, "zoom"),
     ({"base_url": BASE, "steps": [{"action": "wait", "zoom": 2}]}, "zoom"),
     ({**OK, "pace": "warp"}, "pace"),
+    ({**OK, "intro": {"subtitle": "no title"}}, "intro needs a non-empty title"),
+    ({**OK, "outro": {"title": "x", "seconds": 0.1}}, "outro.seconds"),
+    ({**OK, "intro": {"title": "x", "subtitle": 5}}, "intro.subtitle"),
+    ({**OK, "storage_state": 5}, "storage_state"),
     ({"base_url": BASE, "steps": [{"action": "hover"}]}, "hover requires selector"),
     ({"base_url": BASE, "steps": [{"action": "scroll"}]}, "scroll needs exactly one"),
     ({"base_url": BASE, "steps": [{"action": "scroll", "selector": "a", "by": 5}]}, "scroll needs exactly one"),
@@ -259,3 +263,47 @@ def test_hover_and_scroll_actions(tmp_path):
             browser.close()
     finally:
         srv.shutdown()
+
+
+def test_intro_and_outro_cards_extend_the_timeline(site, tmp_path):
+    lines, timeline = [], []
+    wav = tmp_path / "x.wav"
+    cfg = {"base_url": site, "intro": {"title": "Hello <b>", "seconds": 1}, "outro": {"title": "Bye", "seconds": 1},
+           "steps": [{"action": "navigate", "url": "/", "narration": "hi", "pause_ms": 100}]}
+    out = run_demo(cfg, tmp_path / "demo.webm", narration_audio={1: (wav, 0.1)}, timeline=timeline, log=lines.append)
+    assert out.exists() and "Intro card" in lines and "Outro card" in lines
+    assert timeline[0]["start"] >= 1.0  # narration starts after the intro card, so subtitles and audio stay in sync
+
+
+def test_login_session_is_saved_and_reused(tmp_path):
+    seen = []
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen.append(self.headers.get("Cookie"))
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Set-Cookie", "sid=abc123; Path=/")
+            self.end_headers()
+            self.wfile.write(b"<h1>app</h1>")
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{srv.server_port}"
+    try:
+        state = tmp_path / "auth.json"
+        save_login(url, state, headless=True, wait=lambda: None)
+        assert "abc123" in state.read_text() and state.stat().st_mode & 0o077 == 0  # saved, owner-only
+        seen.clear()
+        cfg = {"base_url": url, "storage_state": str(state), "steps": [{"action": "navigate", "url": "/", "pause_ms": 100}]}
+        run_demo(cfg, tmp_path / "demo.webm")
+        assert seen and "sid=abc123" in seen[0]  # the demo's very first request already carries the session
+    finally:
+        srv.shutdown()
+    with pytest.raises(ValueError, match="demoreel login"):
+        run_demo({**cfg, "storage_state": str(tmp_path / "missing.json")}, tmp_path / "x.webm")
+    with pytest.raises(ValueError, match="http"):
+        save_login("file:///etc/passwd", tmp_path / "a.json", headless=True, wait=lambda: None)

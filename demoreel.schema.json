@@ -55,6 +55,18 @@
       "items": {
         "$ref": "#/definitions/step"
       }
+    },
+    "intro": {
+      "$ref": "#/definitions/card",
+      "description": "Title card shown before the first step."
+    },
+    "outro": {
+      "$ref": "#/definitions/card",
+      "description": "Title card shown after the last step."
+    },
+    "storage_state": {
+      "type": "string",
+      "description": "Path to a saved login session (create one with `demoreel login`), relative to this file. Keep it out of git."
     }
   },
   "definitions": {
@@ -266,6 +278,29 @@
           }
         }
       ]
+    },
+    "card": {
+      "type": "object",
+      "required": [
+        "title"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "seconds": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 10,
+          "default": 2.5,
+          "description": "How long the card stays on screen."
+        }
+      }
     }
   }
 }
