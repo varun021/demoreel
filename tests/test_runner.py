@@ -1,4 +1,5 @@
 import functools
+import re
 import http.server
 import threading
 
@@ -162,7 +163,8 @@ def test_cli_errors(tmp_path):
 
 def test_cli_create_subcommand_exists():
     res = CliRunner().invoke(app, ["create", "--help"])
-    assert res.exit_code == 0 and "--config" in res.output
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", res.output)  # CI forces colour, which can split "--config" into styled pieces
+    assert res.exit_code == 0 and "--config" in plain
 
 
 def test_fill_types_into_the_field_with_the_cursor(tmp_path):
