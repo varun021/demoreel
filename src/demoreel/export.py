@@ -12,6 +12,7 @@ def _filter_path(p):
     return str(p).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
 
 
+TARGET_LUFS = -16  # narration loudness
 FADE_S = 0.4  # fade from/to black at the ends of the video
 
 
@@ -41,6 +42,10 @@ def build_command(video, timeline, srt, output, burn_subtitles=True, duration=No
             ins = "".join(f"[a{i}]" for i in range(1, len(audios) + 1))
             parts.append(f"{ins}amix=inputs={len(audios)}:normalize=0:duration=longest[amix]")
             last = "[amix]"
+        # Kokoro output is quiet (about -26 LUFS); bring it to the usual -16 LUFS for video. loudnorm
+        # works at 192 kHz internally, so resample to 48 kHz afterwards.
+        parts.append(f"{last}loudnorm=I={TARGET_LUFS}:TP=-1.5:LRA=11,aresample=48000[an]")
+        last = "[an]"
         if duration:  # no audio fade-in: the first line can start within 0.2 s
             parts.append(f"{last}afade={fade_out}[aout]")
             last = "[aout]"

@@ -6,7 +6,7 @@ import time
 from playwright.sync_api import sync_playwright
 
 STEP_TIMEOUT_MS = 15000
-ALLOWED_ACTIONS = {"navigate", "click", "fill", "press", "wait", "screenshot"}
+ALLOWED_ACTIONS = {"navigate", "click", "fill", "press", "hover", "scroll", "wait", "screenshot"}
 
 def validate_config(config):
     if not isinstance(config, dict):
@@ -41,12 +41,17 @@ def validate_config(config):
         if "zoom" in step and not (action == "click" and isinstance(step["zoom"], (int, float))
                                    and not isinstance(step["zoom"], bool) and 1 < step["zoom"] <= 3):
             raise ValueError(f"Step {i}: zoom must be a number above 1 and at most 3, on a click step.")
-        if action in {"click", "fill", "press"} and not isinstance(step.get("selector"), str):
+        if action in {"click", "fill", "press", "hover"} and not isinstance(step.get("selector"), str):
             raise ValueError(f"Step {i}: {action} requires selector.")
         if action == "fill" and "value" not in step:
             raise ValueError(f"Step {i}: fill requires value.")
         if action == "press" and not isinstance(step.get("key"), str):
             raise ValueError(f"Step {i}: press requires key.")
+        if action == "scroll":
+            by = step.get("by")
+            has_by = isinstance(by, (int, float)) and not isinstance(by, bool)
+            if isinstance(step.get("selector"), str) == has_by:  # both or neither
+                raise ValueError(f"Step {i}: scroll needs exactly one of selector (scroll to it) or by (pixels, + is down).")
         if action == "navigate" and not isinstance(step.get("url"), str):
             raise ValueError(f"Step {i}: navigate requires url.")
     return base_url, steps, {"width": width, "height": height}
@@ -113,6 +118,21 @@ _RIPPLE_JS = """({x, y}) => {
   d.animate([{transform: 'scale(.2)', opacity: .9}, {transform: 'scale(1.4)', opacity: 0}], 600).onfinish = () => d.remove();
 }"""
 
+# Eased page scroll to an absolute offset (CSS smooth-scroll length varies by browser, this doesn't).
+_SCROLL_JS = """async ({y, ms}) => {
+  const max = document.documentElement.scrollHeight - innerHeight;
+  const from = scrollY, to = Math.max(0, Math.min(y, max)), t0 = performance.now();
+  await new Promise(done => {
+    const tick = now => {
+      const p = Math.min(1, (now - t0) / ms), e = p < .5 ? 2 * p * p : 1 - 2 * (1 - p) * (1 - p);
+      scrollTo(0, from + (to - from) * e);
+      p < 1 ? requestAnimationFrame(tick) : done();
+    };
+    requestAnimationFrame(tick);
+  });
+}"""
+SCROLL_MS = 800
+
 def _ms(fx, base):
     return round(base * fx.get("k", 1))
 
@@ -145,6 +165,19 @@ def _fill(page, step, fx):
     loc.click()
     loc.fill("")
     loc.press_sequentially(text, delay=min(_ms(fx, TYPE_DELAY_MS), 3000 // max(1, len(text))))  # cap long values at ~3 s
+
+def _hover(page, step, fx):
+    """Glide the cursor onto the element and rest there (menus, tooltips)."""
+    loc, pt = _glide(page, step, fx)
+    loc.hover()
+
+def _scroll(page, step, fx):
+    if "selector" in step:  # centre the element in the viewport
+        y = page.locator(step["selector"]).evaluate(
+            "el => { const r = el.getBoundingClientRect(); return scrollY + r.top - (innerHeight - r.height) / 2; }")
+    else:
+        y = page.evaluate("scrollY") + step["by"]
+    page.evaluate(_SCROLL_JS, {"y": y, "ms": _ms(fx, SCROLL_MS)})
 
 def _click(page, step, fx):
     """Glide the cursor to the target, optionally zoom in, ripple, click, zoom back out."""
@@ -183,6 +216,10 @@ def _do_action(page, base_url, screenshots_dir, index, step, fx):
         _fill(page, step, fx)
     elif action == "press":
         page.locator(step["selector"]).press(step["key"])
+    elif action == "hover":
+        _hover(page, step, fx)
+    elif action == "scroll":
+        _scroll(page, step, fx)
     elif action == "wait":
         page.wait_for_timeout(max(0, min(int(step.get("ms", 500)), 10000)))
     elif action == "screenshot":

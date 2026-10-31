@@ -4,11 +4,19 @@
   "title": "Demoreel config",
   "description": "A scripted browser demo. See docs/architecture.md for how each field behaves.",
   "type": "object",
-  "required": ["base_url", "steps"],
+  "required": [
+    "base_url",
+    "steps"
+  ],
   "additionalProperties": false,
   "properties": {
-    "$schema": {"type": "string"},
-    "name": {"type": "string", "description": "Free-form label; not used by the tool."},
+    "$schema": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string",
+      "description": "Free-form label; not used by the tool."
+    },
     "base_url": {
       "type": "string",
       "pattern": "^https?://",
@@ -18,42 +26,245 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "width": {"type": "integer", "minimum": 320, "maximum": 3840, "default": 1920},
-        "height": {"type": "integer", "minimum": 240, "maximum": 2160, "default": 1080}
+        "width": {
+          "type": "integer",
+          "minimum": 320,
+          "maximum": 3840,
+          "default": 1920
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 240,
+          "maximum": 2160,
+          "default": 1080
+        }
       }
     },
     "pace": {
-      "enum": ["fast", "normal", "slow"],
+      "enum": [
+        "fast",
+        "normal",
+        "slow"
+      ],
       "default": "normal",
       "description": "Scales built-in delays (x0.6 / x1 / x1.6). Explicit pause_ms and wait ms are not scaled."
     },
-    "steps": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/step"}}
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/step"
+      }
+    }
   },
   "definitions": {
     "step": {
       "type": "object",
-      "required": ["action"],
+      "required": [
+        "action"
+      ],
       "additionalProperties": false,
       "properties": {
-        "action": {"enum": ["navigate", "click", "fill", "press", "wait", "screenshot"]},
-        "url": {"type": "string", "description": "navigate: path or URL on the base origin."},
-        "selector": {"type": "string", "description": "click, fill, press: a Playwright selector. Prefer [data-testid='...']."},
-        "value": {"type": ["string", "number", "boolean"], "description": "fill: the text to type."},
-        "key": {"type": "string", "description": "press: a Playwright key name such as Enter."},
-        "ms": {"type": "integer", "minimum": 0, "maximum": 10000, "description": "wait: milliseconds (default 500)."},
-        "name": {"type": "string", "description": "screenshot: file name stem."},
-        "pause_ms": {"type": "integer", "minimum": 0, "maximum": 5000, "description": "Hold after the step. Default 700 x pace."},
-        "narration": {"type": "string", "pattern": "\\S", "description": "Spoken line for this step."},
-        "narrate": {"enum": ["before", "after"], "default": "after", "description": "Start the narration as the step begins, or after its action."},
-        "highlight": {"type": "string", "description": "Selector to dim the page around and ring just before the action."},
-        "zoom": {"type": "number", "exclusiveMinimum": 1, "maximum": 3, "description": "click only: zoom in on the target and back out."}
+        "action": {
+          "enum": [
+            "navigate",
+            "click",
+            "fill",
+            "press",
+            "hover",
+            "scroll",
+            "wait",
+            "screenshot"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "description": "navigate: path or URL on the base origin."
+        },
+        "selector": {
+          "type": "string",
+          "description": "click, fill, press, hover: a Playwright selector. Prefer [data-testid='...']. scroll: scroll this element into the middle of the view."
+        },
+        "value": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "description": "fill: the text to type."
+        },
+        "key": {
+          "type": "string",
+          "description": "press: a Playwright key name such as Enter."
+        },
+        "ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "wait: milliseconds (default 500)."
+        },
+        "name": {
+          "type": "string",
+          "description": "screenshot: file name stem."
+        },
+        "pause_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "Hold after the step. Default 700 x pace."
+        },
+        "narration": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Spoken line for this step."
+        },
+        "narrate": {
+          "enum": [
+            "before",
+            "after"
+          ],
+          "default": "after",
+          "description": "Start the narration as the step begins, or after its action."
+        },
+        "highlight": {
+          "type": "string",
+          "description": "Selector to dim the page around and ring just before the action."
+        },
+        "zoom": {
+          "type": "number",
+          "exclusiveMinimum": 1,
+          "maximum": 3,
+          "description": "click only: zoom in on the target and back out."
+        },
+        "by": {
+          "type": "number",
+          "description": "scroll: pixels to scroll the page (positive is down). Use this or selector."
+        }
       },
       "allOf": [
-        {"if": {"properties": {"action": {"enum": ["click", "fill", "press"]}}, "required": ["action"]}, "then": {"required": ["selector"]}},
-        {"if": {"properties": {"action": {"const": "fill"}}, "required": ["action"]}, "then": {"required": ["value"]}},
-        {"if": {"properties": {"action": {"const": "press"}}, "required": ["action"]}, "then": {"required": ["key"]}},
-        {"if": {"properties": {"action": {"const": "navigate"}}, "required": ["action"]}, "then": {"required": ["url"]}},
-        {"if": {"required": ["zoom"]}, "then": {"properties": {"action": {"const": "click"}}}}
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "enum": [
+                  "click",
+                  "fill",
+                  "press",
+                  "hover"
+                ]
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "selector"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "fill"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "value"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "press"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "key"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "navigate"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "url"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "zoom"
+            ]
+          },
+          "then": {
+            "properties": {
+              "action": {
+                "const": "click"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "scroll"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "oneOf": [
+              {
+                "required": [
+                  "selector"
+                ],
+                "not": {
+                  "required": [
+                    "by"
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "by"
+                ],
+                "not": {
+                  "required": [
+                    "selector"
+                  ]
+                }
+              }
+            ]
+          }
+        }
       ]
     }
   }

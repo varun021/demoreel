@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 from demoreel.cli import app
 from playwright.sync_api import sync_playwright
 
-from demoreel.runner import _FADE_IN_JS, _click, _fill, _safe_url, validate_config, run_demo
+from demoreel.runner import _FADE_IN_JS, _click, _do_action, _fill, _safe_url, validate_config, run_demo
 
 BASE = "http://localhost:3000"
 OK = {"base_url": BASE, "steps": [{"action": "wait"}]}
@@ -33,6 +33,10 @@ OK = {"base_url": BASE, "steps": [{"action": "wait"}]}
     ({"base_url": BASE, "steps": [{"action": "click", "selector": "a", "zoom": 4}]}, "zoom"),
     ({"base_url": BASE, "steps": [{"action": "wait", "zoom": 2}]}, "zoom"),
     ({**OK, "pace": "warp"}, "pace"),
+    ({"base_url": BASE, "steps": [{"action": "hover"}]}, "hover requires selector"),
+    ({"base_url": BASE, "steps": [{"action": "scroll"}]}, "scroll needs exactly one"),
+    ({"base_url": BASE, "steps": [{"action": "scroll", "selector": "a", "by": 5}]}, "scroll needs exactly one"),
+    ({"base_url": BASE, "steps": [{"action": "scroll", "by": "far"}]}, "scroll needs exactly one"),
 ])
 def test_invalid_config(cfg, msg):
     with pytest.raises(ValueError, match=msg):
@@ -225,3 +229,33 @@ def test_init_writes_a_valid_config_and_protects_existing_files(tmp_path):
     assert CliRunner().invoke(app, ["init", str(target), "--force"]).exit_code == 0
     assert json.loads(target.read_text())["base_url"] == "http://localhost:3000"
     assert CliRunner().invoke(app, ["init", str(tmp_path / "b.json"), "--url", "nope"]).exit_code != 0
+
+
+def test_hover_and_scroll_actions(tmp_path):
+    root = tmp_path / "site"
+    root.mkdir()
+    (root / "index.html").write_text(
+        '<button id="h" onmouseover="document.title=\'hovered\'">menu</button>'
+        '<div style="height:2000px"></div><h2 id="end">bottom</h2><div style="height:600px"></div>')
+    srv = _serve(root)
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 800, "height": 600})
+            page.goto(f"http://127.0.0.1:{srv.server_port}")
+            run = lambda step: _do_action(page, "http://x", tmp_path, 1, step, {"k": 0.2})
+            run({"action": "hover", "selector": "#h"})
+            assert page.title() == "hovered"
+            assert page.evaluate("!!document.getElementById('__ds_cursor')")  # the cursor travelled there
+            run({"action": "scroll", "by": 500})
+            assert page.evaluate("scrollY") == 500
+            run({"action": "scroll", "by": -200})
+            assert page.evaluate("scrollY") == 300
+            run({"action": "scroll", "selector": "#end"})
+            top = page.evaluate("document.getElementById('end').getBoundingClientRect().top")
+            assert 200 < top < 400  # roughly centred in the 600 px viewport
+            run({"action": "scroll", "by": -99999})
+            assert page.evaluate("scrollY") == 0  # clamped at the top
+            browser.close()
+    finally:
+        srv.shutdown()

@@ -89,6 +89,11 @@ def test_build_command_fades_when_duration_known():
     assert "[v]" in " ".join(build_command("v.webm", [], "s.srt", "o.mp4", duration=10))  # fades even without narration
 
 
+def test_build_command_normalizes_loudness():
+    cmd = " ".join(build_command("v.webm", [{"start": 1, "audio": "a.wav"}], "s.srt", "o.mp4"))
+    assert "loudnorm=I=-16" in cmd and "aresample=48000" in cmd
+
+
 def test_ffmpeg_failure_is_reported(tmp_path):
     (tmp_path / "bad.webm").write_text("not a video")
     with pytest.raises(ExportError, match="ffmpeg failed"):

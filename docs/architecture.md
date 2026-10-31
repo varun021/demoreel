@@ -39,7 +39,7 @@ config.json ──► cli.create ──► pipeline.create
 ```
 
 - `base_url` is required and must be http(s). `viewport` is optional (default 1920x1080, allowed range 320x240 to 3840x2160).
-- Actions: `navigate` (`url`), `click` (`selector`), `fill` (`selector`, `value`), `press` (`selector`, `key`), `wait` (`ms`, clamped to 10000), `screenshot` (`name`).
+- Actions: `navigate` (`url`), `click` (`selector`), `fill` (`selector`, `value`), `press` (`selector`, `key`), `hover` (`selector`), `scroll` (exactly one of `selector` or `by`; eased over `SCROLL_MS`, 800 ms x pace, page scroll only), `wait` (`ms`, clamped to 10000), `screenshot` (`name`).
 - Optional top level: `pace` (`fast`, `normal`, `slow`; default `normal`). `runner.PACES` maps it to a time scale (0.6 / 1 / 1.6) kept in the `fx` state dict as `"k"`, and `_ms(fx, base)` applies it to the built-in delays: cursor glide (450 ms), zoom (400), highlight lead (600), ripple lead (150), typing delay (60/key), default pause (700) and the 300 ms hold after narration. Explicit `pause_ms` and `wait.ms` are never scaled, and neither is TTS speed or the page/video fades.
 - Optional on any step: `pause_ms` (default 700, clamped to 5000), `narration` (non-empty string), `narrate` (`"before"` or `"after"`, default `"after"`), `highlight` (selector).
 - Optional on `click` only: `zoom` (number above 1, at most 3).
@@ -85,6 +85,7 @@ Known limitation: `position: fixed` elements inside `<body>` behave as if the bo
 ### Transitions and progress
 
 - **Page fade:** `run_demo` registers `_FADE_IN_JS` as a context init script, so every page (including after a click that navigates) fades in over `PAGE_FADE_MS` (250 ms). Screenshots use `animations="disabled"` so they never catch a half-faded page.
+- **Loudness:** `build_command` runs the mixed narration through `loudnorm` (target `TARGET_LUFS`, -16) and resamples to 48 kHz, because Kokoro renders at about -26 LUFS. On the sample demo it measured -25.6 LUFS before and -16.6 after (single-pass, so it lands within about 1 LU of the target).
 - **Video fade:** `export.build_command(..., duration=...)` fades the video in and out (`FADE_S`, 0.4 s) and fades the audio out. There is deliberately no audio fade-in, because the first line can start within 0.2 s. `export_mp4` gets the duration from `ffprobe`; if it can't, the fades are skipped.
 - **Progress:** `pipeline.create` and `run_demo` take an optional `log(message)` callback. The CLI passes `typer.echo`, which prints one line per stage and per step (`[3/8] click #cta`). Library callers get no output by default.
 

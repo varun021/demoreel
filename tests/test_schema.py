@@ -51,6 +51,10 @@ def test_schema_enums_match_the_code():
     {"base_url": BASE, "steps": [{"action": "wait", "zoom": 2}]},
     {"base_url": BASE, "steps": [{"action": "wait", "narration": " "}]},
     {"base_url": BASE, "steps": [{"action": "wait", "narrate": "during"}]},
+    {"base_url": BASE, "steps": [{"action": "hover"}]},
+    {"base_url": BASE, "steps": [{"action": "scroll"}]},
+    {"base_url": BASE, "steps": [{"action": "scroll", "selector": "a", "by": 5}]},
+    {"base_url": BASE, "steps": [{"action": "scroll", "by": "far"}]},
 ])
 def test_schema_and_validator_reject_the_same_configs(cfg):
     with pytest.raises(jsonschema.ValidationError):
