@@ -6,7 +6,10 @@ from .runner import validate_config
 
 app = typer.Typer(no_args_is_help=True, help="Record browser demos locally.")
 
+SCHEMA_URL = "https://raw.githubusercontent.com/varun021/demoreel/main/demoreel.schema.json"
+
 STARTER = {
+    "$schema": SCHEMA_URL,
     "pace": "normal",
     "steps": [
         {"action": "navigate", "url": "/", "narration": "Welcome! This is the home page."},

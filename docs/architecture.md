@@ -43,6 +43,7 @@ config.json ──► cli.create ──► pipeline.create
 - Optional top level: `pace` (`fast`, `normal`, `slow`; default `normal`). `runner.PACES` maps it to a time scale (0.6 / 1 / 1.6) kept in the `fx` state dict as `"k"`, and `_ms(fx, base)` applies it to the built-in delays: cursor glide (450 ms), zoom (400), highlight lead (600), ripple lead (150), typing delay (60/key), default pause (700) and the 300 ms hold after narration. Explicit `pause_ms` and `wait.ms` are never scaled, and neither is TTS speed or the page/video fades.
 - Optional on any step: `pause_ms` (default 700, clamped to 5000), `narration` (non-empty string), `narrate` (`"before"` or `"after"`, default `"after"`), `highlight` (selector).
 - Optional on `click` only: `zoom` (number above 1, at most 3).
+- `demoreel.schema.json` mirrors these rules for editors (and flags unknown fields, which `validate_config` ignores). `tests/test_schema.py` checks the examples and the `init` starter against it, that its enums match `ALLOWED_ACTIONS` and `PACES`, and that both reject the same bad configs. Update both when you add a field.
 - All validation lives in `runner.validate_config` and runs before the browser starts. A failed check raises `ValueError` with the step number.
 
 ## The step loop (`runner.run_demo`)

@@ -26,7 +26,7 @@ Script a browser demo in JSON and get a narrated, captioned MP4. Everything runs
 
 ## Quick start
 
-You need Python 3.12 or 3.13, ffmpeg (`sudo apt install ffmpeg`), and Chromium for Playwright.
+You need Python 3.10 or newer, ffmpeg (`sudo apt install ffmpeg`), and Chromium for Playwright.
 
 ```bash
 git clone https://github.com/varun021/demoreel.git && cd demoreel
@@ -44,6 +44,8 @@ demoreel create -c examples/sample-demo.json -o output/demo.mp4 --tts fake
 For the real Kokoro voice, see [Kokoro setup](#kokoro-setup).
 
 ## Configure
+
+[`demoreel.schema.json`](demoreel.schema.json) describes the config. Add `"$schema": "https://raw.githubusercontent.com/varun021/demoreel/main/demoreel.schema.json"` as the first key (`demoreel init` does this) and editors such as VS Code give autocomplete, hover docs and errors as you type.
 
 A config is a JSON file with `base_url`, an optional `viewport` and `pace`, and a list of `steps`.
 
@@ -100,7 +102,7 @@ The `kokoro` extra also installs spaCy's `en_core_web_sm` (about 12 MB). The fir
 python -m pytest -q
 ```
 
-Browser tests start a local HTTP server on 127.0.0.1 and never touch real websites. The real-Kokoro tests skip themselves when Kokoro isn't installed, so run the suite inside the Kokoro environment to include them. CI runs the rest on Python 3.12 and 3.13.
+Browser tests start a local HTTP server on 127.0.0.1 and never touch real websites. The real-Kokoro tests skip themselves when Kokoro isn't installed, so run the suite inside the Kokoro environment to include them. CI runs the rest on Python 3.10 to 3.13.
 
 ## Docs
 
@@ -111,7 +113,6 @@ Browser tests start a local HTTP server on 127.0.0.1 and never touch real websit
 - Narration is English only (`lang_code="a"`), and the voice is one setting for the whole demo.
 - Narration timing is wall-clock; if audio is slightly off, use `--av-offset-ms`.
 - Actions must be specified explicitly; natural-language planning isn't built.
-- Python 3.10 and 3.11 are allowed by `requires-python` but are not tested in CI.
 
 ## License
 
