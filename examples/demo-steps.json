@@ -1,0 +1,25 @@
+{
+  "name": "Sample Product Demo",
+  "base_url": "http://localhost:3000",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "steps": [
+    {
+      "action": "navigate",
+      "url": "/",
+      "pause_ms": 1500
+    },
+    {
+      "action": "screenshot",
+      "name": "home-page",
+      "pause_ms": 1000
+    },
+    {
+      "action": "click",
+      "selector": "text=Login",
+      "pause_ms": 1000
+    }
+  ]
+}

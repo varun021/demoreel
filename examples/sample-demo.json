@@ -1,0 +1,64 @@
+{
+  "name": "Acme Notes Sample Demo",
+  "base_url": "http://localhost:3000",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "steps": [
+    {
+      "action": "navigate",
+      "url": "/",
+      "narration": "This is Acme Notes, a notes app that organizes itself.",
+      "narrate": "before"
+    },
+    {
+      "action": "click",
+      "selector": "#cta",
+      "narration": "Let's take a look at the features.",
+      "highlight": "#cta",
+      "zoom": 1.4,
+      "narrate": "before"
+    },
+    {
+      "action": "screenshot",
+      "name": "features"
+    },
+    {
+      "action": "click",
+      "selector": "text=Pricing",
+      "narration": "Pricing is simple, with a free plan, a Pro plan, and a Team plan.",
+      "narrate": "before"
+    },
+    {
+      "action": "click",
+      "selector": "text=Contact",
+      "narration": "Questions? The contact page is one click away.",
+      "narrate": "before"
+    },
+    {
+      "action": "fill",
+      "selector": "[data-testid='email']",
+      "value": "demo@example.com",
+      "narration": "Enter your email.",
+      "pause_ms": 500,
+      "narrate": "before"
+    },
+    {
+      "action": "fill",
+      "selector": "[data-testid='message']",
+      "value": "Hi! I would like a quick tour of Acme Notes.",
+      "narration": "Write a short message.",
+      "narrate": "before"
+    },
+    {
+      "action": "click",
+      "selector": "#send",
+      "narration": "And send it. That is all it takes to get started.",
+      "pause_ms": 1500,
+      "highlight": "#send",
+      "zoom": 1.6,
+      "narrate": "before"
+    }
+  ]
+}

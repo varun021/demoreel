@@ -1,0 +1,9 @@
+*{box-sizing:border-box}body{margin:0;font:20px/1.5 system-ui,sans-serif;color:#1b2430;background:#f6f8fb}
+nav{display:flex;gap:32px;align-items:center;padding:20px 64px;background:#fff;border-bottom:1px solid #e3e8ef}
+nav b{font-size:26px;margin-right:auto;color:#4f46e5}nav a{color:#445;text-decoration:none}nav a:hover{color:#4f46e5}
+main{max-width:1100px;margin:0 auto;padding:64px 32px}h1{font-size:56px;line-height:1.1;margin:0 0 16px}
+.lead{font-size:26px;color:#556;max-width:760px}.btn{display:inline-block;margin-top:24px;padding:16px 32px;background:#4f46e5;color:#fff;border:0;border-radius:10px;font-size:20px;text-decoration:none;cursor:pointer}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:40px}
+.card{background:#fff;border:1px solid #e3e8ef;border-radius:14px;padding:28px}.card h3{margin-top:0}.price{font-size:44px;font-weight:700}
+input,textarea{width:100%;padding:14px;margin:8px 0 20px;border:1px solid #c9d1de;border-radius:8px;font:inherit}label{font-weight:600}
+#thanks{display:none;padding:20px;background:#dcfce7;border-radius:10px;margin-top:20px}

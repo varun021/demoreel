@@ -1,0 +1,210 @@
+import functools
+import http.server
+import threading
+
+import pytest
+from typer.testing import CliRunner
+
+from demoreel.cli import app
+from playwright.sync_api import sync_playwright
+
+from demoreel.runner import _FADE_IN_JS, _click, _fill, _safe_url, validate_config, run_demo
+
+BASE = "http://localhost:3000"
+OK = {"base_url": BASE, "steps": [{"action": "wait"}]}
+
+
+@pytest.mark.parametrize("cfg, msg", [
+    ([], "JSON object"),
+    ({}, "base_url"),
+    ({"base_url": "ftp://x", "steps": [{"action": "wait"}]}, "http"),
+    ({"base_url": BASE, "steps": []}, "steps"),
+    ({**OK, "viewport": {"width": 10, "height": 10}}, "Viewport"),
+    ({**OK, "viewport": "big"}, "viewport"),
+    ({"base_url": BASE, "steps": [{"action": "explode"}]}, "action"),
+    ({"base_url": BASE, "steps": [{"action": "click"}]}, "selector"),
+    ({"base_url": BASE, "steps": [{"action": "fill", "selector": "a"}]}, "value"),
+    ({"base_url": BASE, "steps": [{"action": "press", "selector": "a"}]}, "key"),
+    ({"base_url": BASE, "steps": [{"action": "navigate"}]}, "url"),
+    ({"base_url": BASE, "steps": [{"action": "wait", "highlight": 5}]}, "highlight"),
+    ({"base_url": BASE, "steps": [{"action": "click", "selector": "a", "zoom": 1}]}, "zoom"),
+    ({"base_url": BASE, "steps": [{"action": "click", "selector": "a", "zoom": 4}]}, "zoom"),
+    ({"base_url": BASE, "steps": [{"action": "wait", "zoom": 2}]}, "zoom"),
+    ({**OK, "pace": "warp"}, "pace"),
+])
+def test_invalid_config(cfg, msg):
+    with pytest.raises(ValueError, match=msg):
+        validate_config(cfg)
+
+
+def test_valid_config():
+    assert validate_config(OK)[2] == {"width": 1920, "height": 1080}
+
+
+@pytest.mark.parametrize("target", [
+    "https://evil.example/", "//evil.example/x", "http://localhost:3001/",
+    "https://localhost:3000/", "javascript:alert(1)",
+])
+def test_cross_origin_blocked(target):
+    with pytest.raises(ValueError, match="blocked"):
+        _safe_url(BASE, target)
+
+
+def test_same_origin_allowed():
+    assert _safe_url(BASE, "/a") == BASE + "/a"
+
+
+def test_bad_output_extension(tmp_path):
+    with pytest.raises(ValueError, match="webm"):
+        run_demo(OK, tmp_path / "x.mp4")
+
+
+# --- end-to-end against a local server (needs Playwright Chromium) ---
+
+def _serve(root, hits=None):
+    class H(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *a, **k):
+            super().__init__(*a, directory=str(root), **k)
+
+        def log_message(self, *a):
+            if hits is not None:
+                hits.append(a)
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+@pytest.fixture
+def servers(tmp_path):
+    other_root, root = tmp_path / "other", tmp_path / "site"
+    other_root.mkdir(), root.mkdir()
+    (other_root / "index.html").write_text("other origin")
+    other_hits = []
+    other = _serve(other_root, other_hits)
+    (root / "index.html").write_text(
+        '<h1>Home</h1><button id="b" onclick="document.title=\'clicked\'">Go</button>'
+        f'<a id="out" href="http://127.0.0.1:{other.server_port}/">out</a>')
+    site = _serve(root)
+    yield f"http://127.0.0.1:{site.server_port}", other_hits
+    site.shutdown(), other.shutdown()
+
+
+@pytest.fixture
+def site(servers):
+    return servers[0]
+
+
+def test_records_webm_and_screenshot(site, tmp_path):
+    cfg = {"base_url": site, "viewport": {"width": 640, "height": 480}, "steps": [
+        {"action": "navigate", "url": "/", "pause_ms": 300},
+        {"action": "screenshot", "name": "home page!", "pause_ms": 100},
+        {"action": "click", "selector": "#b", "pause_ms": 300},
+    ]}
+    out = run_demo(cfg, tmp_path / "out" / "demo.webm")
+    assert out.read_bytes()[:4] == b"\x1a\x45\xdf\xa3"  # EBML header = WebM
+    assert (tmp_path / "out" / "demo_screenshots" / "02-home-page.png").stat().st_size > 0
+    assert not (tmp_path / "out" / "demo_raw").exists()
+
+
+def test_highlight_overlay_is_drawn_then_removed(site, tmp_path):
+    cfg = {"base_url": site, "viewport": {"width": 640, "height": 480}, "steps": [
+        {"action": "navigate", "url": "/", "pause_ms": 100},
+        {"action": "screenshot", "name": "plain", "pause_ms": 100},
+        {"action": "screenshot", "name": "ring", "highlight": "#b", "pause_ms": 100},
+        {"action": "screenshot", "name": "after", "pause_ms": 100},
+    ]}
+    run_demo(cfg, tmp_path / "demo.webm")
+    shots = tmp_path / "demo_screenshots"
+    read = lambda n: next(shots.glob(f"*-{n}.png")).read_bytes()
+    assert read("ring") != read("plain")  # overlay captured
+    assert read("after") == read("plain")  # and cleaned up
+
+
+@pytest.mark.parametrize("zoom", [None, 2])
+def test_click_shows_cursor_clicks_and_resets_zoom(site, zoom):
+    step = {"selector": "#b", **({"zoom": zoom} if zoom else {})}
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.goto(site)
+        _click(page, step, {})
+        assert page.title() == "clicked"  # the real click still landed
+        assert page.evaluate("!!document.getElementById('__ds_cursor')")
+        assert page.evaluate("document.body.style.transform") == ""  # zoomed back out
+        browser.close()
+
+
+def test_link_click_to_other_origin_is_blocked(servers, tmp_path):
+    site, other_hits = servers
+    cfg = {"base_url": site, "steps": [
+        {"action": "navigate", "url": "/", "pause_ms": 100},
+        {"action": "click", "selector": "#out", "pause_ms": 500},
+    ]}
+    run_demo(cfg, tmp_path / "demo.webm")
+    assert other_hits == []  # the other origin never received a request
+
+
+def test_failed_step_reports_index(site, tmp_path, monkeypatch):
+    cfg = {"base_url": site, "steps": [{"action": "navigate", "url": "/"},
+                                      {"action": "click", "selector": "#missing"}]}
+    monkeypatch.setattr("demoreel.runner.STEP_TIMEOUT_MS", 500)
+    with pytest.raises(RuntimeError, match="Step 2 .click. failed"):
+        run_demo(cfg, tmp_path / "demo.webm")
+
+
+def test_cli_errors(tmp_path):
+    bad = tmp_path / "bad.json"
+    bad.write_text('{"base_url": "nope", "steps": []}')
+    res = CliRunner().invoke(app, ["create", "-c", str(bad), "-o", str(tmp_path / "o.webm")])
+    assert res.exit_code != 0
+
+
+def test_cli_create_subcommand_exists():
+    res = CliRunner().invoke(app, ["create", "--help"])
+    assert res.exit_code == 0 and "--config" in res.output
+
+
+def test_fill_types_into_the_field_with_the_cursor(tmp_path):
+    root = tmp_path / "site"
+    root.mkdir()
+    (root / "index.html").write_text(
+        '<input id="e" value="old"><script>window.keys = [];'
+        'e.addEventListener("keydown", ev => keys.push(ev.key))</script>')
+    srv = _serve(root)
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page()
+            page.goto(f"http://127.0.0.1:{srv.server_port}")
+            _fill(page, {"selector": "#e", "value": "hi!"}, {})
+            assert page.input_value("#e") == "hi!"  # old value replaced
+            assert page.evaluate("keys.join('')").endswith("hi!")  # typed key by key, not set at once
+            assert page.evaluate("!!document.getElementById('__ds_cursor')")
+            browser.close()
+    finally:
+        srv.shutdown()
+
+
+def test_pages_fade_in(site):
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        context = browser.new_context()
+        context.add_init_script(_FADE_IN_JS)
+        page = context.new_page()
+        page.goto(site)
+        assert page.evaluate("document.documentElement.getAnimations().length") >= 1
+        browser.close()
+
+
+def test_pace_scales_builtin_delays_but_not_explicit_pauses(site, tmp_path):
+    def narrated_start(pace):
+        timeline = []
+        steps = [{"action": "navigate", "url": "/"}, {"action": "click", "selector": "#b", "highlight": "#b"},
+                 {"action": "click", "selector": "#b", "narration": "x"}]
+        wav = tmp_path / "x.wav"
+        run_demo({"base_url": site, "pace": pace, "steps": steps}, tmp_path / f"{pace}.webm",
+                 narration_audio={3: (wav, 0.1)}, timeline=timeline)
+        return timeline[0]["start"]
+    # steps 1-3 contain only built-in delays (pauses, highlight lead, cursor glide, ripple lead)
+    assert narrated_start("slow") - narrated_start("fast") > 2  # about 3.2 s expected

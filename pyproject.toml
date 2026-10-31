@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "demoreel"
+version = "0.1.0"
+description = "Script a browser demo in JSON, get a narrated, captioned MP4. Local-first: Playwright, Kokoro TTS, ffmpeg."
+readme = "README.md"
+license = {text = "MIT"}
+keywords = ["demo", "screencast", "video", "playwright", "tts", "kokoro", "documentation"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Multimedia :: Video",
+]
+requires-python = ">=3.10"
+urls = {Homepage = "https://github.com/varun021/demoreel", Issues = "https://github.com/varun021/demoreel/issues"}
+dependencies = ["playwright>=1.48", "typer>=0.12"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+kokoro = [
+  "kokoro>=0.9",  # install CPU torch first, see README
+  "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+]
+
+[project.scripts]
+demoreel = "demoreel.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
